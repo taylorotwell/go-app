@@ -19,9 +19,11 @@ type User struct {
 
 func main() {
 	rawDB, err := dburl.Open(os.Getenv("DATABASE_URL"))
+
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
+
 	db := sqlx.NewDb(rawDB, "mysql")
 	defer db.Close()
 
@@ -29,6 +31,7 @@ func main() {
 
 	router.GET("/", func(c *gin.Context) {
 		users := make([]User, 0)
+
 		if err := db.SelectContext(c.Request.Context(), &users, "SELECT id, name, email FROM users"); err != nil {
 			c.JSON(500, gin.H{"error": "failed to fetch users"})
 			return
