@@ -31,9 +31,9 @@ func main() {
 	db := sqlx.NewDb(rawDB, "mysql")
 	defer db.Close()
 
-	cacheOptions, err := redis.ParseURL(os.Getenv("CACHE_URL"))
+	cacheOptions, err := redis.ParseURL(os.Getenv("REDIS_URL"))
 	if err != nil {
-		log.Fatalf("parse CACHE_URL: %v", err)
+		log.Fatalf("parse REDIS_URL: %v", err)
 	}
 	cache := redis.NewClient(cacheOptions)
 	defer cache.Close()
