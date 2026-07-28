@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -56,7 +57,11 @@ func main() {
 		pubsub := cache.Subscribe(ctx, "events")
 		defer pubsub.Close()
 
-		if _, err := pubsub.Receive(ctx); err != nil {
+		subscribeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err := pubsub.Receive(subscribeCtx)
+		cancel()
+		if err != nil {
+			log.Printf("subscribe to Valkey: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to subscribe"})
 			return
 		}
@@ -66,6 +71,7 @@ func main() {
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
 		c.Status(http.StatusOK)
+		c.SSEvent("ready", "subscribed")
 		c.Writer.Flush()
 
 		messages := pubsub.Channel()
