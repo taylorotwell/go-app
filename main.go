@@ -11,6 +11,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hibiken/asynq"
 	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
 	"github.com/xo/dburl"
 )
 
@@ -33,26 +34,36 @@ func main() {
 	db := sqlx.NewDb(rawDB, "mysql")
 	defer db.Close()
 
-	redis, err := asynq.ParseRedisURI(os.Getenv("REDIS_URL"))
+	// asynq.ParseRedisURI ignores the username in the URL, which breaks ACL auth,
+	// so parse with go-redis and hand the pieces to asynq instead.
+	redisURL, err := redis.ParseURL(os.Getenv("REDIS_URL"))
 
 	if err != nil {
 		log.Fatalf("parse REDIS_URL: %v", err)
 	}
 
+	redisOpt := asynq.RedisClientOpt{
+		Addr:      redisURL.Addr,
+		Username:  redisURL.Username,
+		Password:  redisURL.Password,
+		DB:        redisURL.DB,
+		TLSConfig: redisURL.TLSConfig,
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "worker" {
-		runWorker(db, redis)
+		runWorker(db, redisOpt)
 		return
 	}
 
-	runWeb(db, redis)
+	runWeb(db, redisOpt)
 }
 
-func runWeb(db *sqlx.DB, redis asynq.RedisConnOpt) {
+func runWeb(db *sqlx.DB, redisOpt asynq.RedisConnOpt) {
 	if err := migrate(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 
-	queue := asynq.NewClient(redis)
+	queue := asynq.NewClient(redisOpt)
 	defer queue.Close()
 
 	router := gin.Default()
@@ -109,8 +120,8 @@ func runWeb(db *sqlx.DB, redis asynq.RedisConnOpt) {
 	}
 }
 
-func runWorker(db *sqlx.DB, redis asynq.RedisConnOpt) {
-	srv := asynq.NewServer(redis, asynq.Config{Concurrency: 10})
+func runWorker(db *sqlx.DB, redisOpt asynq.RedisConnOpt) {
+	srv := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 10})
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TypeProcessOrder, handleProcessOrder(db))
