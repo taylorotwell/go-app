@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orders</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #111;
+    --dim: #999;
+    --line: #e5e5e5;
+    --pending: #999;
+    --processing: #c27c00;
+    --complete: #1a8a3a;
+    --failed: #c62828;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0b0b;
+      --fg: #e8e8e8;
+      --dim: #666;
+      --line: #222;
+      --pending: #777;
+      --processing: #e6a23c;
+      --complete: #4cc26b;
+      --failed: #ef5350;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 48px 16px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  main { max-width: 720px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  h1 { font-size: 14px; font-weight: 600; margin: 0; }
+
+  button {
+    font: inherit;
+    color: var(--fg);
+    background: none;
+    border: 1px solid var(--line);
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+
+  button:hover { border-color: var(--fg); }
+
+  .counts { color: var(--dim); margin-bottom: 16px; }
+  .counts span { color: var(--fg); }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th, td {
+    text-align: left;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  th { color: var(--dim); font-weight: normal; }
+  td.num, th.num { text-align: right; }
+  .worker { color: var(--dim); overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+
+  .pending { color: var(--pending); }
+  .processing { color: var(--processing); }
+  .complete { color: var(--complete); }
+  .failed { color: var(--failed); }
+
+  .empty { color: var(--dim); padding: 24px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>orders</h1>
+    <div>
+      <button data-count="1">dispatch 1</button>
+      <button data-count="10">dispatch 10</button>
+    </div>
+  </header>
+
+  <div class="counts" id="counts">&nbsp;</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>status</th>
+        <th>created</th>
+        <th class="num">took</th>
+        <th class="num">worker</th>
+      </tr>
+    </thead>
+    <tbody id="orders"></tbody>
+  </table>
+</main>
+
+<script>
+  const counts = document.getElementById('counts');
+  const tbody = document.getElementById('orders');
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function render({ orders, counts: c }) {
+    counts.innerHTML = ['pending', 'processing', 'complete']
+      .map((s) => `${s} <span>${c[s] ?? 0}</span>`)
+      .join(' &middot; ');
+
+    tbody.innerHTML = orders.length
+      ? orders.map((o) => `
+          <tr>
+            <td>#${o.id}</td>
+            <td class="${esc(o.status)}">${esc(o.status)}</td>
+            <td>${esc(o.created_at)}</td>
+            <td class="num">${o.duration_ms != null ? (o.duration_ms / 1000).toFixed(2) + 's' : '&mdash;'}</td>
+            <td class="num worker">${esc(o.worker) || '&mdash;'}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="5" class="empty">no orders yet</td></tr>';
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/orders');
+      if (res.ok) render(await res.json());
+    } catch {}
+
+    setTimeout(poll, 1000);
+  }
+
+  document.querySelectorAll('button[data-count]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await fetch(`/orders?count=${btn.dataset.count}`, { method: 'POST' });
+    });
+  });
+
+  poll();
+</script>
+</body>
+</html>
