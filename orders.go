@@ -109,7 +109,7 @@ func recentOrders(ctx context.Context, db *sqlx.DB) ([]Order, map[string]int, er
 			TIMESTAMPDIFF(MICROSECOND, created_at, completed_at) DIV 1000 AS duration_ms
 		FROM orders
 		ORDER BY id DESC
-		LIMIT 25
+		LIMIT 100
 	`)
 
 	if err != nil {
