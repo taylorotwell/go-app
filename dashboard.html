@@ -77,7 +77,6 @@
 
   th { color: var(--dim); font-weight: normal; }
   td.num, th.num { text-align: right; }
-  .worker { color: var(--dim); overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 
   .pending { color: var(--pending); }
   .processing { color: var(--processing); }
@@ -92,8 +91,8 @@
   <header>
     <h1>orders</h1>
     <div>
-      <button data-count="1">dispatch 1</button>
       <button data-count="10">dispatch 10</button>
+      <button data-count="100">dispatch 100</button>
     </div>
   </header>
 
@@ -106,7 +105,6 @@
         <th>status</th>
         <th>created</th>
         <th class="num">took</th>
-        <th class="num">worker</th>
       </tr>
     </thead>
     <tbody id="orders"></tbody>
@@ -131,9 +129,8 @@
             <td class="${esc(o.status)}">${esc(o.status)}</td>
             <td>${esc(o.created_at)}</td>
             <td class="num">${o.duration_ms != null ? (o.duration_ms / 1000).toFixed(2) + 's' : '&mdash;'}</td>
-            <td class="num worker">${esc(o.worker) || '&mdash;'}</td>
           </tr>`).join('')
-      : '<tr><td colspan="5" class="empty">no orders yet</td></tr>';
+      : '<tr><td colspan="4" class="empty">no orders yet</td></tr>';
   }
 
   async function poll() {
