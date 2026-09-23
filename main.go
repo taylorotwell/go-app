@@ -35,36 +35,31 @@ func main() {
 	defer db.Close()
 
 	// asynq.ParseRedisURI ignores the username in the URL, which breaks ACL auth,
-	// so parse with go-redis and hand the pieces to asynq instead.
-	redisURL, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+	// so build the go-redis client ourselves and hand it to asynq instead.
+	redisOpt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
 
 	if err != nil {
 		log.Fatalf("parse REDIS_URL: %v", err)
 	}
 
-	redisOpt := asynq.RedisClientOpt{
-		Addr:      redisURL.Addr,
-		Username:  redisURL.Username,
-		Password:  redisURL.Password,
-		DB:        redisURL.DB,
-		TLSConfig: redisURL.TLSConfig,
-	}
+	rdb := redis.NewClient(redisOpt)
+	rdb.AddHook(skipEvalSha{})
+	defer rdb.Close()
 
 	if len(os.Args) > 1 && os.Args[1] == "worker" {
-		runWorker(db, redisOpt)
+		runWorker(db, rdb)
 		return
 	}
 
-	runWeb(db, redisOpt)
+	runWeb(db, rdb)
 }
 
-func runWeb(db *sqlx.DB, redisOpt asynq.RedisConnOpt) {
+func runWeb(db *sqlx.DB, rdb *redis.Client) {
 	if err := migrate(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 
-	queue := asynq.NewClient(redisOpt)
-	defer queue.Close()
+	queue := asynq.NewClientFromRedisClient(rdb)
 
 	router := gin.Default()
 
@@ -120,8 +115,8 @@ func runWeb(db *sqlx.DB, redisOpt asynq.RedisConnOpt) {
 	}
 }
 
-func runWorker(db *sqlx.DB, redisOpt asynq.RedisConnOpt) {
-	srv := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 10})
+func runWorker(db *sqlx.DB, rdb *redis.Client) {
+	srv := asynq.NewServerFromRedisClient(rdb, asynq.Config{Concurrency: 10})
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TypeProcessOrder, handleProcessOrder(db))
